@@ -22,7 +22,7 @@
 #include "SDL_config.h"
 
 #ifdef SDL_JOYSTICK_LINUX
-
+#define DEBUG_INPUT_EVENTS
 /* This is the system specific header for the SDL joystick API */
 
 #include <math.h>
@@ -262,8 +262,9 @@ static struct joystick_logicalmap joystick_logicalmap[] = {
 static struct
 {
         char* fname;
+		SDL_Joystick* joy;
 #ifndef NO_LOGICAL_JOYSTICKS
-        SDL_Joystick* joy;
+        
         struct joystick_logicalmap* map;
         int prev;
         int next;
@@ -474,13 +475,11 @@ int SDL_SYS_JoystickInit(void)
 					continue;
 				}
 #if SDL_INPUT_LINUXEV
-#ifdef DEBUG_INPUT_EVENTS
-				printf("Checking %s\n", path);
-#endif
-				if ( (i == 0) && ! EV_IsJoystick(fd) ) {
+				fprintf(stderr, "Checking %s\n", path);
+			/*	if ( (i == 0) && ! EV_IsJoystick(fd) ) {
 					close(fd);
 					continue;
-				}
+				}*/
 #endif
 				close(fd);
 
@@ -501,8 +500,8 @@ int SDL_SYS_JoystickInit(void)
 		   currently be calibrated, so it's a win-lose situation.
 		   So : /dev/input/eventX = /dev/input/jsY = /dev/jsY
 		*/
-		if ( (i == 0) && (numjoysticks > 0) )
-			break;
+		//if ( (i == 0) && (numjoysticks > 0) )
+		//	break;
 #endif
 	}
 #ifndef NO_LOGICAL_JOYSTICKS
@@ -686,25 +685,69 @@ static SDL_bool EV_ConfigJoystick(SDL_Joystick *joystick, int fd)
 		joystick->hwdata->is_hid = SDL_TRUE;
 
 		/* Get the number of buttons, axes, and other thingamajigs */
-		for ( i=BTN_JOYSTICK; i < KEY_MAX; ++i ) {
-			if ( test_bit(i, keybit) ) {
-#ifdef DEBUG_INPUT_EVENTS
-				printf("Joystick has button: 0x%x\n", i);
-#endif
-				joystick->hwdata->key_map[i-BTN_MISC] =
-						joystick->nbuttons;
-				++joystick->nbuttons;
+		//fix static def of the buttons
+/*
+#define EVDEV_BTN_A      158  
+#define EVDEV_BTN_B      139  
+#define EVDEV_BTN_X      308  
+#define EVDEV_BTN_Y      352  
+#define EVDEV_BTN_L1     407  
+#define EVDEV_BTN_R1     412  
+#define EVDEV_BTN_L2     313  
+#define EVDEV_BTN_R2     312  
+#define EVDEV_BTN_SELECT 314  
+#define EVDEV_BTN_START  315  
+#define EVDEV_BTN_MENU   174  
+#define EVDEV_BTN_VOLUP  115  
+#define EVDEV_BTN_VOLDOWN 114 
+#define EVDEV_BTN_ON 116
+*/
+		if(SDL_strstr(SDL_joylist[joystick->index].fname, "js") != NULL) //standard joystick we do the normal mapping
+		{
+			for ( i=BTN_JOYSTICK; i < KEY_MAX; ++i ) {
+				if ( test_bit(i, keybit) ) {
+	#ifdef DEBUG_INPUT_EVENTS
+					printf("Joystick has button: 0x%x\n", i);
+	#endif
+					joystick->hwdata->key_map[i-BTN_MISC] =
+							joystick->nbuttons;
+					++joystick->nbuttons;
+				}
+			}
+			for ( i=BTN_MISC; i < BTN_JOYSTICK; ++i ) {
+				if ( test_bit(i, keybit) ) {
+	#ifdef DEBUG_INPUT_EVENTS
+					printf("Joystick has button: 0x%x\n", i);
+	#endif
+					joystick->hwdata->key_map[i-BTN_MISC] =
+							joystick->nbuttons;
+					++joystick->nbuttons;
+				}
 			}
 		}
-		for ( i=BTN_MISC; i < BTN_JOYSTICK; ++i ) {
-			if ( test_bit(i, keybit) ) {
-#ifdef DEBUG_INPUT_EVENTS
-				printf("Joystick has button: 0x%x\n", i);
-#endif
-				joystick->hwdata->key_map[i-BTN_MISC] =
-						joystick->nbuttons;
-				++joystick->nbuttons;
-			}
+		else
+		{
+
+			fprintf(stderr, "define keypad button for /dev/input\r\n");
+			
+			joystick->hwdata->key_map[158] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[139] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[308-BTN_MISC] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[352-BTN_MISC] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[407-BTN_MISC] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[412-BTN_MISC] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[313-BTN_MISC] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[312-BTN_MISC] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[314-BTN_MISC] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[315-BTN_MISC] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[174] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[115] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[114] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[116] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[103] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[105] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[106] = joystick->nbuttons; ++joystick->nbuttons;
+			joystick->hwdata->key_map[108] = joystick->nbuttons; ++joystick->nbuttons;
 		}
 		for ( i=0; i<ABS_MISC; ++i ) {
 			/* Skip hats */
@@ -718,12 +761,12 @@ static SDL_bool EV_ConfigJoystick(SDL_Joystick *joystick, int fd)
 				if ( ioctl(fd, EVIOCGABS(i), &absinfo) < 0 )
 					continue;
 #ifdef DEBUG_INPUT_EVENTS
-				printf("Joystick has absolute axis: %x\n", i);
-				printf("Values = { %d, %d, %d, %d, %d }\n",
+				fprintf(stderr, "Joystick has absolute axis: %x\n", i);
+				fprintf(stderr, "Values = { %d, %d, %d, %d, %d }\n",
 					absinfo.value, absinfo.minimum,
 					absinfo.maximum, absinfo.fuzz, absinfo.flat);
 #endif /* DEBUG_INPUT_EVENTS */
-				joystick->hwdata->abs_map[i] = joystick->naxes;
+				
 				if ( absinfo.minimum == absinfo.maximum ) {
 				    joystick->hwdata->abs_correct[i].used = 0;
 				} else {
@@ -734,10 +777,21 @@ static SDL_bool EV_ConfigJoystick(SDL_Joystick *joystick, int fd)
 				++joystick->naxes;
 			}
 		}
+		if(joystick->naxes == 0 ) //define axes by defaults
+		{
+			fprintf(stderr, "config hardcoded axes\n");
+			joystick->hwdata->abs_correct[0].used = 1;
+			joystick->hwdata->abs_correct[0].minimum = -127;
+			joystick->hwdata->abs_correct[0].maximum = 217;
+			joystick->hwdata->abs_correct[1].used = 1;
+			joystick->hwdata->abs_correct[1].minimum = -127;
+			joystick->hwdata->abs_correct[1].maximum = 127;
+			joystick->naxes = 2;
+		}
 		for ( i=ABS_HAT0X; i <= ABS_HAT3Y; i += 2 ) {
 			if ( test_bit(i, absbit) || test_bit(i+1, absbit) ) {
 #ifdef DEBUG_INPUT_EVENTS
-				printf("Joystick has hat %d\n",(i-ABS_HAT0X)/2);
+				fprintf(stderr, "Joystick has hat %d\n",(i-ABS_HAT0X)/2);
 #endif
 				++joystick->nhats;
 			}
@@ -807,6 +861,7 @@ int SDL_SYS_JoystickOpen(SDL_Joystick *joystick)
 	SDL_joylist[joystick->index].joy = joystick;
 #else
 	fd = open(SDL_joylist[joystick->index].fname, O_RDONLY, 0);
+	SDL_joylist[joystick->index].joy = joystick;
 #endif
 
 	if ( fd < 0 ) {
@@ -968,7 +1023,7 @@ void HandleHat(SDL_Joystick *stick, Uint8 hat, int axis, int value)
 		}
 #endif /* USE_LOGICAL_JOYSTICKS */
 
-		SDL_PrivateJoystickHat(stick, hat,
+		SDL_PrivateJoystickHat(SDL_joylist[0].joy, hat,
 			position_map[the_hat->axis[1]][the_hat->axis[0]]);
 	}
 }
@@ -1011,7 +1066,8 @@ static __inline__ void JS_HandleEvents(SDL_Joystick *joystick)
 					if (!LogicalJoystickAxis(joystick,
 				           events[i].number, events[i].value))
 #endif
-					SDL_PrivateJoystickAxis(joystick,
+					fprintf(stderr,"JS_EVENT_AXIS axe %d val %d\r\n", events[i].number, events[i].value);
+					SDL_PrivateJoystickAxis(SDL_joylist[0].joy,
 				           events[i].number, events[i].value);
 					break;
 				}
@@ -1037,6 +1093,8 @@ static __inline__ void JS_HandleEvents(SDL_Joystick *joystick)
 				if (!LogicalJoystickButton(joystick,
 				           events[i].number, events[i].value))
 #endif
+				//do not use button from joystick as we are already using the input/events
+				//fprintf(stderr,"JS BUTTON code %d mapped to button %d\r\n", events[i].number, joystick->hwdata->key_map[code]);
 				SDL_PrivateJoystickButton(joystick,
 				           events[i].number, events[i].value);
 				break;
@@ -1088,23 +1146,31 @@ static __inline__ void EV_HandleEvents(SDL_Joystick *joystick)
 	}
 #endif
 
-	while ((len=read(joystick->hwdata->fd, events, (sizeof events))) > 0) {
+	while ((len=read(joystick->hwdata->fd, events, (sizeof events))) > 0) 
+	{
 		len /= sizeof(events[0]);
-		for ( i=0; i<len; ++i ) {
+		for ( i=0; i<len; ++i ) 
+		{
 			code = events[i].code;
-			switch (events[i].type) {
+			switch (events[i].type) 
+			{
 			    case EV_KEY:
-				if ( code >= BTN_MISC ) {
+				
+				if ( code >= BTN_MISC ) 
 					code -= BTN_MISC;
+
 #ifndef NO_LOGICAL_JOYSTICKS
 					if (!LogicalJoystickButton(joystick,
 				           joystick->hwdata->key_map[code],
 					   events[i].value))
 #endif
-					SDL_PrivateJoystickButton(joystick,
+
+//always fire the events to device 0
+					fprintf(stderr,"code %d mapped to button %d\r\n", code, joystick->hwdata->key_map[code]);
+					SDL_PrivateJoystickButton(SDL_joylist[0].joy,
 				           joystick->hwdata->key_map[code],
 					   events[i].value);
-				}
+
 				break;
 			    case EV_ABS:
 				if (code >= ABS_MISC) {
@@ -1120,6 +1186,7 @@ static __inline__ void EV_HandleEvents(SDL_Joystick *joystick)
 				    case ABS_HAT3X:
 				    case ABS_HAT3Y:
 					code -= ABS_HAT0X;
+					fprintf(stderr,"HAT code %d mapped to button %d\r\n", code);
 					HandleHat(joystick, code/2, code%2,
 							events[i].value);
 					break;
@@ -1131,7 +1198,8 @@ static __inline__ void EV_HandleEvents(SDL_Joystick *joystick)
 				           joystick->hwdata->abs_map[code],
 					   events[i].value))
 #endif
-					  SDL_PrivateJoystickAxis(joystick,
+					fprintf(stderr,"ABS code %d mapped to button %d\r\n", code, joystick->hwdata->key_map[code]);
+					  SDL_PrivateJoystickAxis(SDL_joylist[0].joy,
 				           joystick->hwdata->abs_map[code],
 					   events[i].value);
 					}
@@ -1178,7 +1246,7 @@ void SDL_SYS_JoystickUpdate(SDL_Joystick *joystick)
 		if ( xrel || yrel ) {
 			joystick->hwdata->balls[i].axis[0] = 0;
 			joystick->hwdata->balls[i].axis[1] = 0;
-			SDL_PrivateJoystickBall(joystick, (Uint8)i, xrel, yrel);
+			SDL_PrivateJoystickBall(SDL_joylist[0].joy, (Uint8)i, xrel, yrel);
 		}
 	}
 }

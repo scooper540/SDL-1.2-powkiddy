@@ -416,16 +416,9 @@ int SDL_OpenAudio(SDL_AudioSpec *desired, SDL_AudioSpec *obtained)
 		/* Pick some default audio format */
 		desired->format = AUDIO_S16;
 	}
-	if ( desired->channels == 0 ) {
-		env = SDL_getenv("SDL_AUDIO_CHANNELS");
-		if ( env ) {
-			desired->channels = (Uint8)SDL_atoi(env);
-		}
-	}
-	if ( desired->channels == 0 ) {
-		/* Pick a default number of channels */
-		desired->channels = 2;
-	}
+	/* Pick a default number of channels */
+	desired->channels = 2;
+	
 	switch ( desired->channels ) {
 	    case 1:	/* Mono */
 	    case 2:	/* Stereo */
@@ -483,7 +476,7 @@ int SDL_OpenAudio(SDL_AudioSpec *desired, SDL_AudioSpec *obtained)
 		SDL_CloseAudio();
 		return(-1);
 	}
-
+	audio->spec.samples=1024;
 	/* If the audio driver changes the buffer size, accept it */
 	if ( audio->spec.samples != desired->samples ) {
 		desired->samples = audio->spec.samples;

@@ -385,6 +385,7 @@ static int ALSA_finalize_hardware(_THIS, SDL_AudioSpec *spec, snd_pcm_hw_params_
 		return(-1);
 	}
 
+	
 	/* Get samples for the actual buffer size */
 	status = SDL_NAME(snd_pcm_hw_params_get_buffer_size)(hwparams, &bufsize);
 	if ( status < 0 ) {
@@ -433,13 +434,13 @@ static int ALSA_set_period_size(_THIS, SDL_AudioSpec *spec, snd_pcm_hw_params_t 
 	}
 
 	frames = spec->samples;
-	status = SDL_NAME(snd_pcm_hw_params_set_period_size_near)(pcm_handle, hwparams, &frames, NULL);
+	status = SDL_NAME(snd_pcm_hw_params_set_period_size_near)(pcm_handle, hwparams, 1024, NULL);
 	if ( status < 0 ) {
 		return(-1);
 	}
 
 	periods = 2;
-	status = SDL_NAME(snd_pcm_hw_params_set_periods_near)(pcm_handle, hwparams, &periods, NULL);
+	status = SDL_NAME(snd_pcm_hw_params_set_periods_near)(pcm_handle, hwparams, 4, NULL);
 	if ( status < 0 ) {
 		return(-1);
 	}
@@ -468,8 +469,8 @@ static int ALSA_set_buffer_size(_THIS, SDL_AudioSpec *spec, snd_pcm_hw_params_t 
 		}
 	}
 
-	frames = spec->samples * 2;
-	status = SDL_NAME(snd_pcm_hw_params_set_buffer_size_near)(pcm_handle, hwparams, &frames);
+	frames = spec->samples * 4;
+	status = SDL_NAME(snd_pcm_hw_params_set_buffer_size_near)(pcm_handle, hwparams, 4096);
 	if ( status < 0 ) {
 		return(-1);
 	}
@@ -557,7 +558,7 @@ static int ALSA_OpenAudio(_THIS, SDL_AudioSpec *spec)
 		return(-1);
 	}
 	spec->format = test_format;
-
+	spec->samples=1024;
 	/* Set the number of channels */
 	status = SDL_NAME(snd_pcm_hw_params_set_channels)(pcm_handle, hwparams, spec->channels);
 	channels = spec->channels;
