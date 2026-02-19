@@ -1,4 +1,8 @@
 
+Update of SDL-1.2 for powkiddy:
+- remap the 2 gamepads and joystick of the PowKiddy to only 1 device
+- set fixed alsa buffer size to 4096 and windows size to 1024 (needed to use sound)
+
 # DEPRECATED
 
 The 1.2 branch of SDL is deprecated. While we occasionally collect fixes
