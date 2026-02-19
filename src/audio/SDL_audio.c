@@ -476,7 +476,7 @@ int SDL_OpenAudio(SDL_AudioSpec *desired, SDL_AudioSpec *obtained)
 		SDL_CloseAudio();
 		return(-1);
 	}
-	audio->spec.samples=1024;
+	//audio->spec.samples=1024;
 	/* If the audio driver changes the buffer size, accept it */
 	if ( audio->spec.samples != desired->samples ) {
 		desired->samples = audio->spec.samples;
