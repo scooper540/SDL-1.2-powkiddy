@@ -82,6 +82,7 @@ static int (*SDL_NAME(snd_pcm_hw_params_set_periods_near))(snd_pcm_t *pcm, snd_p
 static int (*SDL_NAME(snd_pcm_hw_params_set_periods))(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int val, int dir);
 static int (*SDL_NAME(snd_pcm_hw_params_get_periods))(const snd_pcm_hw_params_t *params, unsigned int *val, int *dir);
 static int (*SDL_NAME(snd_pcm_hw_params_set_buffer_size_near))(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
+static int (*SDL_NAME(snd_pcm_hw_params_set_buffer_size))(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
 static int (*SDL_NAME(snd_pcm_hw_params_get_buffer_size))(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
 static int (*SDL_NAME(snd_pcm_hw_params))(snd_pcm_t *pcm, snd_pcm_hw_params_t *params);
 /*
@@ -124,6 +125,7 @@ static struct {
 	{ "snd_pcm_hw_params_set_periods",	(void**)(char*)&SDL_NAME(snd_pcm_hw_params_set_periods)	},
 	{ "snd_pcm_hw_params_get_periods",	(void**)(char*)&SDL_NAME(snd_pcm_hw_params_get_periods)	},
 	{ "snd_pcm_hw_params_set_buffer_size_near",	(void**)(char*)&SDL_NAME(snd_pcm_hw_params_set_buffer_size_near) },
+	{ "snd_pcm_hw_params_set_buffer_size",	(void**)(char*)&SDL_NAME(snd_pcm_hw_params_set_buffer_size) },
 	{ "snd_pcm_hw_params_get_buffer_size",	(void**)(char*)&SDL_NAME(snd_pcm_hw_params_get_buffer_size) },
 	{ "snd_pcm_hw_params",	(void**)(char*)&SDL_NAME(snd_pcm_hw_params)	},
 	{ "snd_pcm_sw_params_set_avail_min",	(void**)(char*)&SDL_NAME(snd_pcm_sw_params_set_avail_min) },
@@ -376,32 +378,22 @@ static void ALSA_PlayAudio(_THIS)
 
     swizzle_alsa_channels(this);
 	/* Conversion S16 → S32 */
-float max_input = 0.0f;
-float max_output = 0.0f;
-int ch = 0;
-snd_pcm_uframes_t i = 0;
+	int ch = 0;
+	snd_pcm_uframes_t i = 0;
     // High pass filter pour atténuer les basses + conversion S16 -> S32
-    float alpha = 0.95f; // ajuste le cutoff (~100 Hz à 44100 Hz)
-for (i = 0; i < total_frames; i++) {
-    for (ch = 0; ch < channels; ch++) {
-        float sample = (float)src[i * channels + ch] / 32768.0f;
-        dst[i * channels + ch] = (int32_t)(sample * 2147483647.0f);
-    /* Track max pour debug */
-        float abs_val = (sample < 0) ? -sample : sample;
-        if (abs_val > max_input) max_input = abs_val;
-        
-        abs_val = (float)dst[i * channels + ch] / 2147483647.0f;
-        if (abs_val < 0) abs_val = -abs_val;
-        if (abs_val > max_output) max_output = abs_val;
+    float alpha = 0.98f; // ajuste le cutoff (~100 Hz à 44100 Hz)
+    for ( i = 0; i < total_frames; i++) {
+        for (ch = 0; ch < channels; ch++) {
+            float in  = (float)src[i * channels + ch];                // S16 -> float
+            float out = alpha * (prev_out[ch] + in - prev_in[ch]);   // HPF 1er ordre
+            prev_in[ch]  = in;
+            prev_out[ch] = out;
+			//out = soft_clip(out);
+         
+            dst[i * channels + ch] = ((int32_t)out) << 16;     // S32
+        }
     }
-}
 
-/* Log une fois par seconde */
-static int frame_count = 0;
-if (frame_count++ % 100 == 0) {
-    fprintf(stderr, "[SDL Audio] total frame %d, Max input: %.3f, Max output: %.3f\n", total_frames,
-            max_input, max_output);
-	}
  	frames_left = total_frames;
     const int frame_size = this->spec.channels * sizeof(int32_t);
 	
@@ -465,16 +457,24 @@ static void ALSA_CloseAudio(_THIS)
 static int ALSA_finalize_hardware(_THIS, SDL_AudioSpec *spec, snd_pcm_hw_params_t *hwparams, int override)
 {
 	int status;
-	snd_pcm_uframes_t bufsize;
+	snd_pcm_uframes_t bufsize = 4096;
 	
-
-	
+	snd_pcm_uframes_t period_size = 1024; // typiquement 256..2048
+	unsigned int periods = 4;             // nombre de périodes dans le buffer
+	status = SDL_NAME(snd_pcm_hw_params_set_period_size_near)(pcm_handle, hwparams, &period_size, NULL);
+	//status = SDL_NAME(snd_pcm_hw_params_set_periods_near)(pcm_handle, hwparams, &periods, NULL);
+	status = SDL_NAME(snd_pcm_hw_params_set_buffer_size_near)(pcm_handle, hwparams, &bufsize);
+	/* "set" the hardware with the desired parameters */
+	status = SDL_NAME(snd_pcm_hw_params)(pcm_handle, hwparams);
+	if ( status < 0 ) {
+		return(-1);
+	}
 	/* Get samples for the actual buffer size */
 	status = SDL_NAME(snd_pcm_hw_params_get_buffer_size)(hwparams, &bufsize);
 	if ( status < 0 ) {
 		return(-1);
 	}
-	if ( !override && bufsize != spec->samples * 2 ) {
+	if ( !override && bufsize != spec->samples * 4 ) {
 		return(-1);
 	}
 
@@ -644,34 +644,34 @@ static int ALSA_OpenAudio(_THIS, SDL_AudioSpec *spec)
 	}
 	spec->freq = rate;
 	spec->samples = 1024;
+	snd_pcm_uframes_t  frames = 1024;
 	//set period size and buffer size directly
-	unsigned int frames = 1024;
-	status = SDL_NAME(snd_pcm_hw_params_set_period_size_near)(pcm_handle, hwparams, &frames, NULL);
+	
+	status = SDL_NAME(snd_pcm_hw_params_set_period_size)(pcm_handle, hwparams, frames, NULL);
 	if ( status < 0 ) {
 		SDL_SetError("Couldn't set period size: %s", SDL_NAME(snd_strerror)(status));
 		return(-1);
 	}
 	frames = 4096;
-	status = SDL_NAME(snd_pcm_hw_params_set_buffer_size_near)(pcm_handle, hwparams, &frames);
+	status = SDL_NAME(snd_pcm_hw_params_set_buffer_size)(pcm_handle, hwparams, frames);
 	if ( status < 0 ) {
 		SDL_SetError("Couldn't set buffer size: %s", SDL_NAME(snd_strerror)(status));
 		return(-1);
 	}
-	/* "set" the hardware with the desired parameters */
 	status = SDL_NAME(snd_pcm_hw_params)(pcm_handle, hwparams);
-	if ( status < 0 ) {
-		return(-1);
-	}
-	/* Set the buffer size, in samples */
+//	
+//	
+//	/* Set the buffer size, in samples */
 //	if ( ALSA_set_period_size(this, spec, hwparams, 0) < 0 &&
 //	     ALSA_set_buffer_size(this, spec, hwparams, 0) < 0 ) {
-//		/* Failed to set desired buffer size, do the best you can... */
+////		/* Failed to set desired buffer size, do the best you can... */
 //		if ( ALSA_set_period_size(this, spec, hwparams, 1) < 0 ) {
 //			SDL_SetError("Couldn't set hardware audio parameters: %s", SDL_NAME(snd_strerror)(status));
 //			ALSA_CloseAudio(this);
 //			return(-1);
 //		}
 //	}
+	
 
 	/* Set the software parameters */
 	snd_pcm_sw_params_alloca(&swparams);
