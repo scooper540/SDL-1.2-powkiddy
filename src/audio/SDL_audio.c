@@ -180,6 +180,7 @@ int SDLCALL SDL_RunAudio(void *audiop)
 
 		/* Convert the audio if necessary */
 		if ( audio->convert.needed ) {
+			fprintf(stderr,"conver needed\n");
 			SDL_ConvertAudio(&audio->convert);
 			stream = audio->GetAudioBuf(audio);
 			if ( stream == NULL ) {
@@ -414,7 +415,7 @@ int SDL_OpenAudio(SDL_AudioSpec *desired, SDL_AudioSpec *obtained)
 	}
 	if ( desired->format == 0 ) {
 		/* Pick some default audio format */
-		desired->format = AUDIO_S16;
+		desired->format = AUDIO_S16LSB;
 	}
 	/* Pick a default number of channels */
 	desired->channels = 2;
@@ -506,6 +507,7 @@ int SDL_OpenAudio(SDL_AudioSpec *desired, SDL_AudioSpec *obtained)
 			SDL_CloseAudio();
 			return(-1);
 		}
+		audio->convert.needed = 0;
 		if ( audio->convert.needed ) {
 			audio->convert.len = (int) ( ((double) audio->spec.size) /
                                           audio->convert.len_ratio );
