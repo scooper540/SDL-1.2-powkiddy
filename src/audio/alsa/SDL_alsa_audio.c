@@ -381,7 +381,7 @@ static void ALSA_PlayAudio(_THIS)
 	int ch = 0;
 	snd_pcm_uframes_t i = 0;
     // High pass filter pour atténuer les basses + conversion S16 -> S32
-    float alpha = 0.98f; // ajuste le cutoff (~100 Hz à 44100 Hz)
+    float alpha = 0.95f; // ajuste le cutoff (~100 Hz à 44100 Hz)
     for ( i = 0; i < total_frames; i++) {
         for (ch = 0; ch < channels; ch++) {
             float in  = (float)src[i * channels + ch];                // S16 -> float
@@ -390,7 +390,7 @@ static void ALSA_PlayAudio(_THIS)
             prev_out[ch] = out;
 			//out = soft_clip(out);
          
-            dst[i * channels + ch] = ((int32_t)out) << 16;     // S32
+            dst[i * channels + ch] = ((int32_t)out) << 16;     // << 16 for S32 or 24
         }
     }
 

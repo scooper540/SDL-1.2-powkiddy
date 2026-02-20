@@ -1328,8 +1328,8 @@ int SDL_BuildAudioCVT(SDL_AudioCVT *cvt,
 	Uint16 src_format, Uint8 src_channels, int src_rate,
 	Uint16 dst_format, Uint8 dst_channels, int dst_rate)
 {
-fprintf(stderr, "Build format %04x->%04x, channels %u->%u, rate %d->%d\n",
-		src_format, dst_format, src_channels, dst_channels, src_rate, dst_rate);
+/*printf("Build format %04x->%04x, channels %u->%u, rate %d->%d\n",
+		src_format, dst_format, src_channels, dst_channels, src_rate, dst_rate);*/
 	/* Start off with no conversion necessary */
 	cvt->needed = 0;
 	cvt->filter_index = 0;
@@ -1435,68 +1435,68 @@ fprintf(stderr, "Build format %04x->%04x, channels %u->%u, rate %d->%d\n",
 
 	/* Do rate conversion */
 	cvt->rate_incr = 0.0;
-//	if ( (src_rate/100) != (dst_rate/100) ) {
-//		Uint32 hi_rate, lo_rate;
-//		int len_mult;
-//		double len_ratio;
-//		void (SDLCALL *rate_cvt)(SDL_AudioCVT *cvt, Uint16 format);
-//
-//		if ( src_rate > dst_rate ) {
-//			hi_rate = src_rate;
-//			lo_rate = dst_rate;
-//			switch (src_channels) {
-//				case 1: rate_cvt = SDL_RateDIV2; break;
-//				case 2: rate_cvt = SDL_RateDIV2_c2; break;
-//				case 4: rate_cvt = SDL_RateDIV2_c4; break;
-//				case 6: rate_cvt = SDL_RateDIV2_c6; break;
-//				default: return -1;
-//			}
-//			len_mult = 1;
-//			len_ratio = 0.5;
-//		} else {
-//			hi_rate = dst_rate;
-//			lo_rate = src_rate;
-//			switch (src_channels) {
-//				case 1: rate_cvt = SDL_RateMUL2; break;
-//				case 2: rate_cvt = SDL_RateMUL2_c2; break;
-//				case 4: rate_cvt = SDL_RateMUL2_c4; break;
-//				case 6: rate_cvt = SDL_RateMUL2_c6; break;
-//				default: return -1;
-//			}
-//			len_mult = 2;
-//			len_ratio = 2.0;
-//		}
-//		/* If hi_rate = lo_rate*2^x then conversion is easy */
-//		while ( ((lo_rate*2)/100) <= (hi_rate/100) ) {
-//			cvt->filters[cvt->filter_index++] = rate_cvt;
-//			cvt->len_mult *= len_mult;
-//			lo_rate *= 2;
-//			cvt->len_ratio *= len_ratio;
-//		}
-//		/* We may need a slow conversion here to finish up */
-//		if ( (lo_rate/100) != (hi_rate/100) ) {
-//#if 1
-//			/* The problem with this is that if the input buffer is
-//			   say 1K, and the conversion rate is say 1.1, then the
-//			   output buffer is 1.1K, which may not be an acceptable
-//			   buffer size for the audio driver (not a power of 2)
-//			*/
-//			/* For now, punt and hope the rate distortion isn't great.
-//			*/
-//#else
-//			if ( src_rate < dst_rate ) {
-//				cvt->rate_incr = (double)lo_rate/hi_rate;
-//				cvt->len_mult *= 2;
-//				cvt->len_ratio /= cvt->rate_incr;
-//			} else {
-//				cvt->rate_incr = (double)hi_rate/lo_rate;
-//				cvt->len_ratio *= cvt->rate_incr;
-//			}
-//			cvt->filters[cvt->filter_index++] = SDL_RateSLOW;
-//#endif
-//		}
-//	}
-//
+	if ( (src_rate/100) != (dst_rate/100) ) {
+		Uint32 hi_rate, lo_rate;
+		int len_mult;
+		double len_ratio;
+		void (SDLCALL *rate_cvt)(SDL_AudioCVT *cvt, Uint16 format);
+
+		if ( src_rate > dst_rate ) {
+			hi_rate = src_rate;
+			lo_rate = dst_rate;
+			switch (src_channels) {
+				case 1: rate_cvt = SDL_RateDIV2; break;
+				case 2: rate_cvt = SDL_RateDIV2_c2; break;
+				case 4: rate_cvt = SDL_RateDIV2_c4; break;
+				case 6: rate_cvt = SDL_RateDIV2_c6; break;
+				default: return -1;
+			}
+			len_mult = 1;
+			len_ratio = 0.5;
+		} else {
+			hi_rate = dst_rate;
+			lo_rate = src_rate;
+			switch (src_channels) {
+				case 1: rate_cvt = SDL_RateMUL2; break;
+				case 2: rate_cvt = SDL_RateMUL2_c2; break;
+				case 4: rate_cvt = SDL_RateMUL2_c4; break;
+				case 6: rate_cvt = SDL_RateMUL2_c6; break;
+				default: return -1;
+			}
+			len_mult = 2;
+			len_ratio = 2.0;
+		}
+		/* If hi_rate = lo_rate*2^x then conversion is easy */
+		while ( ((lo_rate*2)/100) <= (hi_rate/100) ) {
+			cvt->filters[cvt->filter_index++] = rate_cvt;
+			cvt->len_mult *= len_mult;
+			lo_rate *= 2;
+			cvt->len_ratio *= len_ratio;
+		}
+		/* We may need a slow conversion here to finish up */
+		if ( (lo_rate/100) != (hi_rate/100) ) {
+#if 1
+			/* The problem with this is that if the input buffer is
+			   say 1K, and the conversion rate is say 1.1, then the
+			   output buffer is 1.1K, which may not be an acceptable
+			   buffer size for the audio driver (not a power of 2)
+			*/
+			/* For now, punt and hope the rate distortion isn't great.
+			*/
+#else
+			if ( src_rate < dst_rate ) {
+				cvt->rate_incr = (double)lo_rate/hi_rate;
+				cvt->len_mult *= 2;
+				cvt->len_ratio /= cvt->rate_incr;
+			} else {
+				cvt->rate_incr = (double)hi_rate/lo_rate;
+				cvt->len_ratio *= cvt->rate_incr;
+			}
+			cvt->filters[cvt->filter_index++] = SDL_RateSLOW;
+#endif
+		}
+	}
+
 	/* Set up the filter information */
 	if ( cvt->filter_index != 0 ) {
 		cvt->needed = 1;
