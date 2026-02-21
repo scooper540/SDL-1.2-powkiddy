@@ -135,29 +135,6 @@ static struct {
 	{ "snd_pcm_nonblock",	(void**)(char*)&SDL_NAME(snd_pcm_nonblock)	},
 };
 
-#define SOFT_CLIP_THRESHOLD 0.95f
-
-//high pass filter
-static float prev_in[2]  = {0.0f, 0.0f};
-static float prev_out[2] = {0.0f, 0.0f};
-
-static inline float soft_clip(float x)
-{
-   if (x > 1.0f) return 1.0f;
-   if (x < -1.0f) return -1.0f;
-   
-   if (x > SOFT_CLIP_THRESHOLD || x < -SOFT_CLIP_THRESHOLD)
-   {
-      float threshold = SOFT_CLIP_THRESHOLD;
-      
-      if (x > threshold)
-         return threshold + (x - threshold) * 0.5f;
-      else
-         return -threshold + (x + threshold) * 0.5f;
-   }
-   
-   return x;
-}
 
 static void UnloadALSALibrary(void) {
 	if (alsa_loaded) {
@@ -354,6 +331,54 @@ static int ALSA_pcm_recover(snd_pcm_t *handle, int err, int silent)
 	}
 	return err;
 }
+#define SOFT_CLIP_THRESHOLD 0.95f
+#define BASS_FILTER_COEF 0.98f
+static inline float soft_clip(float x)
+{
+    if (x > 1.0f) return 1.0f;
+    if (x < -1.0f) return -1.0f;
+
+    if (x > SOFT_CLIP_THRESHOLD)
+        return SOFT_CLIP_THRESHOLD + (x - SOFT_CLIP_THRESHOLD) * 0.5f;
+    else if (x < -SOFT_CLIP_THRESHOLD)
+        return -SOFT_CLIP_THRESHOLD + (x + SOFT_CLIP_THRESHOLD) * 0.5f;
+
+    return x;
+}
+static inline float high_pass_filter(float input, float *prev_in, float *prev_out, float coef)
+{
+    float output = coef * (*prev_out + input - *prev_in);
+    *prev_in = input;
+    *prev_out = output;
+    return output;
+}
+/* dst: int32_t*, src: int16_t*, channels: int, total_frames: int */
+static float hp_prev_in[2] = {0};   // supporte jusqu'à 8 canaux
+static float hp_prev_out[2] = {0};
+static void convert_s16_to_s32_filtered(int16_t *src, int32_t *dst, int channels, int total_frames)
+{
+	int i = 0, ch = 0;
+    for (i = 0; i < total_frames; i++)
+    {
+        for (ch = 0; ch < channels; ch++)
+        {
+            // Convert S16 -> float [-1.0, 1.0]
+            float sample = (float)src[i * channels + ch] / 32768.0f;
+
+            // Filtre passe-haut
+            sample = high_pass_filter(sample,
+                                      &hp_prev_in[ch],
+                                      &hp_prev_out[ch],
+                                      BASS_FILTER_COEF);
+
+            // Soft-clip
+            sample = soft_clip(sample);
+
+            // Convert float -> S32
+            dst[i * channels + ch] = (int32_t)(sample * 2147483647.0f);
+        }
+    }
+}
 static void ALSA_PlayAudio(_THIS)
 {
 	
@@ -367,7 +392,7 @@ static void ALSA_PlayAudio(_THIS)
 	if (state == SND_PCM_STATE_XRUN || state == SND_PCM_STATE_DRAINING) {
 	    snd_pcm_prepare(pcm_handle);
 	}
-   int status;
+	int status;
     snd_pcm_uframes_t frames_left;
     const int16_t *src = (const int16_t *)mixbuf;
 	
@@ -377,22 +402,17 @@ static void ALSA_PlayAudio(_THIS)
     const snd_pcm_uframes_t total_frames = this->spec.samples;
 
     swizzle_alsa_channels(this);
+
 	/* Conversion S16 → S32 */
-	int ch = 0;
-	snd_pcm_uframes_t i = 0;
-    // High pass filter pour atténuer les basses + conversion S16 -> S32
-    float alpha = 0.95f; // ajuste le cutoff (~100 Hz à 44100 Hz)
-    for ( i = 0; i < total_frames; i++) {
-        for (ch = 0; ch < channels; ch++) {
-            float in  = (float)src[i * channels + ch];                // S16 -> float
-            float out = alpha * (prev_out[ch] + in - prev_in[ch]);   // HPF 1er ordre
-            prev_in[ch]  = in;
-            prev_out[ch] = out;
-			//out = soft_clip(out);
-         
-            dst[i * channels + ch] = ((int32_t)out) << 16;     // << 16 for S32 or 24
-        }
-    }
+//	int ch = 0;
+//	snd_pcm_uframes_t i = 0;
+//    for ( i = 0; i < total_frames; i++) {
+//        for (ch = 0; ch < channels; ch++) {
+//            dst[i * channels + ch] = ((int32_t)src[i * channels + ch]) << 16;     // << 16 for S32 or 24
+//        }
+//    }
+
+	convert_s16_to_s32_filtered(src, dst, 2, total_frames);
 
  	frames_left = total_frames;
     const int frame_size = this->spec.channels * sizeof(int32_t);
@@ -720,5 +740,9 @@ static int ALSA_OpenAudio(_THIS, SDL_AudioSpec *spec)
 	if (!mixbuf32) return -1;
 	SDL_memset(mixbuf32, 0, total_samples * sizeof(int32_t));
 	/* We're ready to rock and roll. :-) */
+
+	/* Init filtre */
+   	hp_prev_in[0] = hp_prev_in[1] = 0.0f;
+   	hp_prev_out[0] = hp_prev_out[1] = 0.0f;
 	return(0);
 }
