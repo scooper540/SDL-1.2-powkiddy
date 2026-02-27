@@ -44,6 +44,8 @@
 /* The tag name used by ALSA audio */
 #define DRIVER_NAME         "alsa"
 
+//#define HP_FILTER
+
 /* Audio driver functions */
 static int ALSA_OpenAudio(_THIS, SDL_AudioSpec *spec);
 static void ALSA_WaitAudio(_THIS);
@@ -365,6 +367,7 @@ static void convert_s16_to_s32_filtered(int16_t *src, int32_t *dst, int channels
             // Convert S16 -> float [-1.0, 1.0]
             float sample = (float)src[i * channels + ch] / 32768.0f;
 
+#ifdef HP_FILTER
             // Filtre passe-haut
             sample = high_pass_filter(sample,
                                       &hp_prev_in[ch],
@@ -373,7 +376,7 @@ static void convert_s16_to_s32_filtered(int16_t *src, int32_t *dst, int channels
 
             // Soft-clip
             sample = soft_clip(sample);
-
+#endif
             // Convert float -> S32
             dst[i * channels + ch] = (int32_t)(sample * 2147483647.0f);
         }
@@ -477,9 +480,9 @@ static void ALSA_CloseAudio(_THIS)
 static int ALSA_finalize_hardware(_THIS, SDL_AudioSpec *spec, snd_pcm_hw_params_t *hwparams, int override)
 {
 	int status;
-	snd_pcm_uframes_t bufsize = 4096;
+	snd_pcm_uframes_t bufsize = 7680;
 	
-	snd_pcm_uframes_t period_size = 1024; // typiquement 256..2048
+	snd_pcm_uframes_t period_size = 768; // typiquement 256..2048
 	unsigned int periods = 4;             // nombre de périodes dans le buffer
 	status = SDL_NAME(snd_pcm_hw_params_set_period_size_near)(pcm_handle, hwparams, &period_size, NULL);
 	//status = SDL_NAME(snd_pcm_hw_params_set_periods_near)(pcm_handle, hwparams, &periods, NULL);
@@ -499,7 +502,7 @@ static int ALSA_finalize_hardware(_THIS, SDL_AudioSpec *spec, snd_pcm_hw_params_
 	}
 
 	/* FIXME: Is this safe to do? */
-	//spec->samples = 1024;
+	
 	
 	/* This is useful for debugging */
 	if ( getenv("SDL_AUDIO_ALSA_DEBUG") ) {
@@ -535,13 +538,13 @@ static int ALSA_set_period_size(_THIS, SDL_AudioSpec *spec, snd_pcm_hw_params_t 
 		}
 	}
 
-	frames = 1024;
+	frames = 768;
 	status = SDL_NAME(snd_pcm_hw_params_set_period_size)(pcm_handle, hwparams, frames, NULL);
 	if ( status < 0 ) {
 		return(-1);
 	}
 
-	periods = 4;
+	periods = 10;
 	status = SDL_NAME(snd_pcm_hw_params_set_periods)(pcm_handle, hwparams, periods, NULL);
 	if ( status < 0 ) {
 		return(-1);
@@ -571,7 +574,7 @@ static int ALSA_set_buffer_size(_THIS, SDL_AudioSpec *spec, snd_pcm_hw_params_t 
 		}
 	}
 
-	frames = 4096;
+	frames = 7680;
 	status = SDL_NAME(snd_pcm_hw_params_set_buffer_size_near)(pcm_handle, hwparams, frames);
 	if ( status < 0 ) {
 		return(-1);
@@ -663,8 +666,8 @@ static int ALSA_OpenAudio(_THIS, SDL_AudioSpec *spec)
 		return(-1);
 	}
 	spec->freq = rate;
-	spec->samples = 1024;
-	snd_pcm_uframes_t  frames = 1024;
+	spec->samples = 768;
+	snd_pcm_uframes_t  frames = 768;
 	//set period size and buffer size directly
 	
 	status = SDL_NAME(snd_pcm_hw_params_set_period_size)(pcm_handle, hwparams, frames, NULL);
@@ -672,7 +675,7 @@ static int ALSA_OpenAudio(_THIS, SDL_AudioSpec *spec)
 		SDL_SetError("Couldn't set period size: %s", SDL_NAME(snd_strerror)(status));
 		return(-1);
 	}
-	frames = 4096;
+	frames = 7680;
 	status = SDL_NAME(snd_pcm_hw_params_set_buffer_size)(pcm_handle, hwparams, frames);
 	if ( status < 0 ) {
 		SDL_SetError("Couldn't set buffer size: %s", SDL_NAME(snd_strerror)(status));
